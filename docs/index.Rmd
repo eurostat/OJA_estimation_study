@@ -1,0 +1,10 @@
+---
+title: "OJA_estimation_study"
+output: html_document
+---
+
+Here you can find the rendered files from the *.Rmd* files. 
+
+## R Markdown files 
+
+ - The graphs and tables can be replicate with the code from [chapter-4.Rmd](chapter-4.html)

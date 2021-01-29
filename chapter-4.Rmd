@@ -1,0 +1,907 @@
+---
+title: "Chapter 4 tables and graphs"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup}
+library(data.table)
+library(tidyverse)
+library(xtable)
+library(countrycode)
+library(magrittr)
+library(jtools)
+library(lmtest)
+library(gridExtra)
+library(pastecs)
+library(plm)
+options(scipen = 999)
+```
+
+## Prepare the data
+
+```{r data preparation}
+rm(list = ls())
+source("r-codes/dataprep.R")
+```
+
+## Table 3
+
+Number of observations by quarter in country
+
+```{r table3}
+ dcast(oja,countries~time,fun.aggregate=sum,value.var='vals') %>%
+  xtable(digits = 0, 
+         caption = "Number of advertisements active at the end of each quarter") %>%
+  print.xtable(include.colnames = T, include.rownames = F, 
+               format.args = list(big.mark = ",", decimal.mark = ""),
+               caption.placement = "top")
+```
+
+## Table 4
+
+Number of unique data sources overtime
+
+```{r table 4a}
+oja_db[idcountry != "UK", lapply(.SD, sum),  keyby = .(idcountry, source), .SDcols = t2018Q3:t2019Q4] %>%
+  gather(quarter, vals, t2018Q3:t2019Q4) %>%
+  filter(vals >0) %>%
+  count(idcountry, quarter) %>%
+  spread(quarter, n) %>%
+  mutate(idcountry = countrycode(idcountry, "eurostat","country.name")) %>%
+  rename(Country="idcountry") %>%
+  xtable(digits = 0, 
+         caption = "Number of unique sources of advertisements in Cedefop’s OJA dataset, by quarter") %>%
+  print.xtable(include.colnames = T, include.rownames = F, 
+               format.args = list(big.mark = ",", decimal.mark = ""),
+               caption.placement = "top")
+```
+
+How stable are data sources?
+
+```{r table 4b}
+oja_db[idcountry != "UK", lapply(.SD, sum),  keyby = .(idcountry, source), .SDcols = t2018Q3:t2019Q4] %>%
+  gather(quarter, vals, t2018Q3:t2019Q4) %>%
+  filter(vals >0) %>%
+  add_count(idcountry, source, name  = "vals") %>%
+  count(idcountry, source, vals) %>%
+  group_by(idcountry) %>%
+  summarise(Whole_period = sum(vals == 6), Total = n(), Share = Whole_period/Total*100) %>%
+  mutate(idcountry = countrycode(idcountry, "eurostat","country.name")) %>%
+  rename(Country="idcountry") %>%
+  xtable(digits = 2, 
+         caption = "Number of unique sources of advertisements in Cedefop’s OJA dataset, by quarter") %>%
+  print.xtable(include.colnames = T, include.rownames = F, 
+               caption.placement = "top")
+```
+
+# Table 5
+
+For those advertisements observed whole period, how many advertismenets were present on multiple sources?
+
+
+```{r table5}
+rbind(
+  oja_db[(t2018Q3), .N, .(idcountry, general_id, source)][, .N, .(idcountry, general_id)][
+  , .N, .(idcountry, times = N)][, quarter := "t2018Q3"],
+  oja_db[(t2018Q4), .N, .(idcountry, general_id, source)][, .N, .(idcountry, general_id)][
+  , .N, .(idcountry, times = N)][, quarter := "t2018Q4"],
+  oja_db[(t2019Q1), .N, .(idcountry, general_id, source)][, .N, .(idcountry, general_id)][
+  , .N, .(idcountry, times = N)][, quarter := "t2019Q1"],
+  oja_db[(t2019Q2), .N, .(idcountry, general_id, source)][, .N, .(idcountry, general_id)][
+  , .N, .(idcountry, times = N)][, quarter := "t2019Q2"],
+  oja_db[(t2019Q3), .N, .(idcountry, general_id, source)][, .N, .(idcountry, general_id)][
+  , .N, .(idcountry, times = N)][, quarter := "t2019Q3"],
+  oja_db[(t2019Q4), .N, .(idcountry, general_id, source)][, .N, .(idcountry, general_id)][
+  , .N, .(idcountry, times = N)][, quarter := "t2019Q4"]
+) -> oja_db_unique_sources
+
+
+oja_db_unique_sources[order(idcountry,quarter, times)] %>%
+  count(idcountry, quarter, times = ifelse(times > 3, 4, times), wt = N)  %>%
+  mutate(idcountry = countrycode(idcountry, "eurostat","country.name")) %>%
+  group_by(idcountry,  times) %>%
+  summarise(n = mean(n)) %>%
+  spread(times, n, fill = 0) %>%
+  rename(Country="idcountry",'4 and more'="4") %>%
+  xtable(digits = 0, 
+         caption = "Average number of advertisements occurring on one, two, three and four and more sources advertisements between 2018Q3 and 2019Q4") %>%
+  print.xtable(include.colnames = T, include.rownames = F, 
+               format.args = list(big.mark = ",", decimal.mark = ""),
+               caption.placement = "top")
+
+
+```
+
+
+# Figure 2
+
+Number of job ads in the OJA dataset and number of vacancies from JVS at the end of quarter for 16 countries
+
+```{r figure2, fig.height=8,fig.width=12}
+# (relations1.jpeg) , out.width="1600px",out.height="829px"
+
+MERGED_a %>%
+filter(JVS > 0) %>%
+select(-countries) %>%
+group_by(time) %>%
+summarise(across(.cols = everything(),~ sum(., na.rm = T))) %>%
+gather(datasources, value, c(OJA, JVS)) %>%
+ggplot() +
+geom_line(aes(x = time, y = round(value/1000), colour = datasources, group=datasources)) +
+geom_point(aes(x = time, y = round(value/1000), colour = datasources)) +
+scale_colour_manual(values = c("#286EB4","#FAA519"), name = "") +
+geom_text(aes(label = round(value/1000), x = time, y = round(value/1000)), hjust = 0, vjust = -1 ) +
+theme_bw() +
+labs(title = "",
+     x = "",
+     y = "Number of vacancies (in thousands)") +
+theme(title = element_text(face = "bold", size = 15),
+      axis.text.x = element_text(colour = "black", size = 16),  
+      axis.text.y = element_text(colour = "black", size = 16),
+      axis.title.y = element_text(vjust = 2),
+      legend.text=element_text(size = 16),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      panel.border = element_blank(),
+      axis.line = element_line(colour = "black")) 
+```
+
+
+
+# Figure 3
+
+Mean quarterly number of job ads in OJA data and vacancies in JVS at the end of quarter
+
+```{r figure3, fig.height=8,fig.width=12}
+# (relations3.png)
+
+MERGED_a %>%
+select(-time) %>%
+group_by(countries) %>%
+summarise(across(.cols = everything(),~ sum(., na.rm = T))) -> df -> df_plot
+  
+df <- df %>%
+mutate(val = ifelse(JVS != 0, round(((OJA - JVS)/JVS)*100), NA),
+       maxval = ifelse(OJA > JVS, OJA, JVS)) %>%
+filter(!is.na(val))
+  
+  
+df_plot %>%
+gather(datasources, value, 2:3) %>%
+mutate(value = ifelse(value == 0, NA, value),
+       countries = as.factor(countries)) %>%
+ggplot(aes(x = countries, y = value/1000)) +
+geom_bar(aes(fill = datasources), stat = "identity", position = "dodge") +
+geom_text(data = df, aes(label = paste0(val, "%"), 
+                         x = countries, 
+                         y = maxval/1000, hjust = 0.5, vjust = -1 ), size = 4) +
+theme_bw() +
+scale_fill_manual(values = c("#286EB4","#FAA519"), name = "") +
+labs(title = "",
+     x = "",
+     y = "Number of vacancies (in thousands)") +
+theme(title = element_text(face = "bold", size = 15),
+      axis.text.x = element_text(colour = "black", size = 15, angle = 90),  
+      axis.text.y = element_text(colour = "black", size = 16),
+      axis.title.y = element_text(vjust = 2),
+      legend.text=element_text(size = 16),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      panel.border = element_blank(),
+      axis.line = element_line(colour = "black")) 
+```
+
+# Figure 4 
+
+Number of job ads from OJA data and vacancies from JVS in countries over time
+
+```{r figure4, fig.height=8,fig.width=12}
+# (relations4.jpeg)
+MERGED_a %>%
+filter(JVS > 0) %>%
+gather(datasources, value, c(OJA, JVS)) %>%
+ggplot() +
+geom_line(aes(x = time, y = round(value/1000), colour = datasources)) +
+geom_point(aes(x = time, y = round(value/1000), colour = datasources)) +
+scale_colour_manual(values = c("#286EB4","#FAA519"), name = "") +
+theme_bw() +
+labs(title = "",
+     x = "",
+     y = "Number of vacancies (in thousands)") +
+facet_wrap(~countries, ncol = 4, scales = "free") +
+theme(title = element_text(face = "bold", size = 15),
+      axis.text.x = element_text(colour = "black", size = 10),  
+      axis.text.y = element_text(colour = "black", size = 10),
+      axis.title.y = element_text(vjust = 2),
+      legend.text=element_text(size = 16),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      strip.text = element_text(face = "bold", size = 13),
+      axis.line = element_line(colour = "black"))
+```
+
+# Table 6
+
+Descriptive statistics for OJA data and JVS - countries and time
+
+```{r table6}
+MERGED_a %>%
+filter(JVS > 0) %>%
+select(OJA,JVS) %>%  
+stat.desc()
+```
+
+
+# Figure 5
+
+Mean quarterly number of job ads from OJA and vacancies from JVS at the end of quarter across NACE sections
+
+```{r figure5, fig.height=8,fig.width=12}
+# (relations9.png)
+
+MERGED_b %>%
+filter(countries %in% c("Bulgaria", "Croatia", "Czechia", "Germany", "Hungary", 
+                        "Latvia", "Lithuania", "Luxembourg", "Netherlands", "Poland", 
+                        "Romania", "Slovakia", "Sweden")) %>% 
+select(-c(countries, time)) %>%
+group_by(nace_r2) %>%
+summarise(across(.cols = everything(),~ sum(., na.rm = T))) -> df -> df_plot
+
+df <- df %>%
+mutate(val = round(((OJA - JVS)/JVS)*100),
+       maxval = ifelse(OJA > JVS, OJA, JVS))
+
+
+df_plot %>%
+gather(datasources, value, c(OJA, JVS)) %>%
+ggplot(aes(x = nace_r2, y = value/1000)) +
+geom_bar(aes(fill = datasources), stat = "identity", position = "dodge") +
+geom_text(data = df, aes(label = paste0(val, "%"), 
+                         x = nace_r2, 
+                         y = maxval/1000, hjust = 0.5, vjust = -1 ), size = 5) +
+theme_bw() +
+scale_fill_manual(values = c("#286EB4","#FAA519"), name = "") +
+labs(title = "",
+     x = "",
+     y = "Number of vacancies (in thousands)") +
+theme(title = element_text(face = "bold", size = 15),
+      axis.text.x = element_text(colour = "black", size = 16),  
+      axis.text.y = element_text(colour = "black", size = 16),
+      axis.title.y = element_text(vjust = 2),
+      legend.text=element_text(size = 16),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      panel.border = element_blank(),
+      axis.line = element_line(colour = "black"))
+```
+
+
+# Figure 6
+
+Number of job ads from OJA and vacancies from JVS in NACE sections over time
+
+```{r figure6, fig.height=8,fig.width=12}
+# (relations10.jpeg)
+
+MERGED_b %>%
+filter(countries %in% c("Bulgaria", "Croatia", "Czechia", "Germany", "Hungary", 
+                        "Latvia", "Lithuania", "Luxembourg", "Netherlands", "Poland", 
+                        "Romania", "Slovakia", "Sweden")) %>% 
+select(-countries) %>%
+group_by(time, nace_r2) %>%
+summarise(across(.cols = everything(),~ sum(., na.rm = T))) %>%
+gather(datasources, value, c(OJA, JVS)) %>%
+ggplot() +
+geom_line(aes(x = time, y = round(value/1000), colour = datasources)) +
+geom_point(aes(x = time, y = round(value/1000), colour = datasources)) +
+scale_colour_manual(values = c("#286EB4","#FAA519"), name = "") +
+theme_bw() +
+labs(title = "",
+     x = "",
+     y = "Number of vacancies (in thousands)") +
+facet_wrap(~nace_r2, ncol = 4, scales = "free") +
+theme(title = element_text(face = "bold", size = 15),
+      axis.text.x = element_text(colour = "black", size = 10),  
+      axis.text.y = element_text(colour = "black", size = 10),
+      axis.title.y = element_text(vjust = 2),
+      legend.text=element_text(size = 16),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      strip.text = element_text(face = "bold", size = 13),
+      axis.line = element_line(colour = "black")) 
+
+```
+
+# Table 7
+
+Descriptive statistics for OJA data and JVS - NACE section and time
+
+```{r table7}
+MERGED_b %>%
+filter(countries %in% c("Bulgaria", "Croatia", "Czechia", "Germany", "Hungary", 
+                        "Latvia", "Lithuania", "Luxembourg", "Netherlands", "Poland", 
+                        "Romania", "Slovakia", "Sweden")) %>% 
+select(-countries) %>%
+group_by(time, nace_r2)  %>% 
+select(OJA,JVS) %>%  
+stat.desc()
+```
+
+
+# Figure 7
+
+Mean quarterly number of job ads from OJA and vacancies from JVS for Hungary across ISCO major groups of occupations at the end of quarter
+
+```{r figure7, fig.height=8,fig.width=12}
+# (relations14.png)
+
+MERGED_c %>%
+filter(countries == "Hungary") %>%
+select(-c(countries, time)) %>%
+group_by(isco08) %>%
+summarise(across(.cols = everything(),~ sum(., na.rm = T))) -> df -> df_plot
+
+df <- df %>%
+mutate(val = round(((OJA - JVS)/JVS)*100),
+       maxval = ifelse(OJA > JVS, OJA, JVS))
+
+df_plot %>%
+gather(datasources, value, 2:3) %>%
+mutate(isco08 = factor(isco08),
+       datasources = factor(datasources)) %>%
+ggplot(aes(x = isco08, y = value)) +
+geom_bar(aes(fill = datasources), stat = "identity", position = "dodge") +
+geom_text(data = df, aes(label = paste0(val, "%"), 
+                         x = isco08, 
+                         y = maxval, hjust = 0.5, vjust = -1 ), size = 5) +
+theme_bw() +
+scale_fill_manual(values = c("#286EB4","#FAA519"), name = "") +
+labs(title = "",
+     x = "",
+     y = "") +
+theme(title = element_text(face = "bold", size = 15),
+      axis.text.x = element_text(colour = "black", size = 16),  
+      axis.text.y = element_text(colour = "black", size = 16),
+      axis.title.y = element_text(vjust = 2),
+      legend.text=element_text(size = 16),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      panel.border = element_blank(),
+      axis.line = element_line(colour = "black"))
+
+```
+
+
+# Figure 8
+
+Number of job ads from Cedefop and vacancies from Eurostat for ISCO major groups of occupations in Hungary over time
+
+```{r figure8, fig.height=8,fig.width=12}
+# (relations15.jpeg)
+
+MERGED_c %>%
+filter(countries == "Hungary") %>%
+select(-countries) %>%
+group_by(isco08, time) %>%
+summarise(across(.cols = everything(),~ sum(., na.rm = T))) %>%
+gather(datasources, value, c(OJA, JVS)) %>%
+ggplot() +
+geom_line(aes(x = time, y = value, colour = datasources)) +
+geom_point(aes(x = time, y = value, colour = datasources)) +
+scale_colour_manual(values = c("#286EB4","#FAA519"), name = "") +
+theme_bw() +
+labs(title = "",
+     x = "",
+     y = "") +
+facet_wrap(~isco08, ncol = 3, scales = "free") +
+theme(title = element_text(face = "bold", size = 15),
+      axis.text.x = element_text(colour = "black", size = 10),  
+      axis.text.y = element_text(colour = "black", size = 10),
+      axis.title.y = element_text(vjust = 2),
+      legend.text=element_text(size = 16),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      strip.text = element_text(face = "bold", size = 13),
+      axis.line = element_line(colour = "black"))  
+```
+
+# Table 8 
+
+Descriptive statistics for OJA and JVS data for Hungary - ISCO major groups of occupation and time
+```{r table8}
+MERGED_c %>%
+filter(countries == "Hungary") %>%
+select(-c(countries, time)) %>%
+group_by(isco08) %>%
+select(OJA,JVS) %>%  
+stat.desc()
+```  
+  
+# Figure 9
+
+Regression fit between JVS and OJA
+
+```{r figure9, fig.height=8,fig.width=12}
+geos <- MERGED_a
+
+geos  %<>%
+filter(countries %in% c("Bulgaria", "Croatia", "Czechia", "Estonia", "Germany",
+                        "Hungary", "Latvia", "Lithuania", "Luxembourg", "Netherlands",
+                        "Poland", "Portugal", "Romania", "Slovakia", "Slovenia", "Sweden"))
+
+geos_t <- geos %>%
+          select(-countries) %>%
+          group_by(time) %>%
+          summarise_all(funs(mean(., na.rm = T),
+                              sum(., na.rm = T)))
+
+
+cor(geos_t$OJA_sum, geos_t$JVS_sum)
+
+# (relations2.png)
+
+linear <- lm(JVS_sum ~ OJA_sum, data=geos_t)
+summary(linear)
+effect_plot(linear, pred = OJA_sum, interval = TRUE, plot.points = TRUE)
+```
+
+
+# Figure 10
+
+Regression results between OJA and JVS for individual countries
+
+```{r figure10, fig.height=8,fig.width=12}
+# (relations8.jpeg)
+
+df <- MERGED_a  %>%
+filter(JVS > 0) %>%
+mutate(time = as.character(time))
+
+# custom function
+
+lm_models <- lm_simulator(data = df,
+                          dep_var = 4,
+                          indep_var = 3,
+                          key = 1)
+
+lm_models_models <- lapply(1:16, function(x) lm_models$model_output[[x]]$model)
+lm_models_models_plots <- lapply(1:16,  function(x){
+  return(
+    jtools::effect_plot(lm_models_models[[x]], 
+                        pred = OJA , 
+                        interval = TRUE, 
+                        plot.points = TRUE,
+                        main.title = names(lm_models$model_output[x]),
+                        colors = "black")
+  ) 
+})
+
+
+grid.arrange(lm_models_models_plots[[1]],
+             lm_models_models_plots[[2]],
+             lm_models_models_plots[[3]],
+             lm_models_models_plots[[4]],
+             lm_models_models_plots[[5]],
+             lm_models_models_plots[[6]],
+             lm_models_models_plots[[7]],
+             lm_models_models_plots[[8]],
+             lm_models_models_plots[[9]],
+             lm_models_models_plots[[10]],
+             lm_models_models_plots[[11]],
+             lm_models_models_plots[[12]],
+             lm_models_models_plots[[13]],
+             lm_models_models_plots[[14]],
+             lm_models_models_plots[[15]],
+             lm_models_models_plots[[16]], ncol = 4)
+```
+
+
+# Table 9 
+
+Summary of regression results for individual countries
+
+```{r table9}
+lm_models_ols_coefficients <- lapply(1:16, function(x){
+return(
+cbind(x,
+      round(lm_models$model_output[[x]]$intercept),
+      format(round(lm_models$model_output[[x]]$beta, digits = 3), nsmall = 3),
+      format(round(lm_models$model_output[[x]]$tstat, digits = 2), nsmall = 2),
+      "adj.r2" =  format(round(lm_models$model_output[[x]]$adj_r2, digits = 2), nsmall = 2),
+      "r2" =  format(round(lm_models$model_output[[x]]$r2, digits = 2), nsmall = 2),
+      cbind("stat" = format(round(lm_models$model_output[[x]]$dwtest$statistic, digits = 1), nsmall = 1),
+            "val" = lm_models$model_output[[x]]$dwtest$p.value)
+      )
+)}); 
+lm_models_ols_coefficients <- do.call(rbind, lm_models_ols_coefficients)
+lm_models_ols_coefficients
+```
+
+# Figure 11
+
+Regression results between OJA and JVS for individual economic activities
+
+```{r figure11, fig.height=8,fig.width=12}
+# (relations13.jpeg)
+
+df <- MERGED_b %>%
+filter(countries %in% c("Bulgaria", "Croatia", "Czechia", "Germany", "Hungary", 
+                        "Latvia", "Lithuania", "Luxembourg", "Netherlands", "Poland", 
+                        "Romania", "Slovakia", "Sweden")) %>% 
+select(-countries) %>%
+mutate(time = as.character(time)) %>%
+group_by(time, nace_r2) %>%
+summarise(across(.cols = everything(),~ sum(., na.rm = T))) %>%
+ungroup() %>%
+select(-time)
+
+# custom function
+
+lm_models <- lm_simulator(data = df,
+                          dep_var = 3,
+                          indep_var = 2,
+                          key = 1)
+
+lm_models_models <- lapply(1:19, function(x) lm_models$model_output[[x]]$model)
+lm_models_models_plots <- lapply(1:19,  function(x){
+  return(
+    jtools::effect_plot(lm_models_models[[x]], 
+                        pred = OJA , 
+                        interval = TRUE, 
+                        plot.points = TRUE,
+                        main.title = names(lm_models$model_output[x]),
+                        colors = "black")
+  ) 
+})
+
+
+grid.arrange(lm_models_models_plots[[1]],
+             lm_models_models_plots[[2]],
+             lm_models_models_plots[[3]],
+             lm_models_models_plots[[4]],
+             lm_models_models_plots[[5]],
+             lm_models_models_plots[[6]],
+             lm_models_models_plots[[7]],
+             lm_models_models_plots[[8]],
+             lm_models_models_plots[[9]],
+             lm_models_models_plots[[10]],
+             lm_models_models_plots[[11]],
+             lm_models_models_plots[[12]],
+             lm_models_models_plots[[13]],
+             lm_models_models_plots[[14]],
+             lm_models_models_plots[[15]],
+             lm_models_models_plots[[16]],
+             lm_models_models_plots[[17]],
+             lm_models_models_plots[[18]],
+             lm_models_models_plots[[19]], ncol = 5) 
+```
+
+
+# Table 10
+
+Summary of regression results for individual economic activities
+
+```{r table10}
+lm_models_ols_coefficients <- lapply(1:19, function(x){
+return(
+cbind(x,
+      round(lm_models$model_output[[x]]$intercept),
+      format(round(lm_models$model_output[[x]]$beta, digits = 3), nsmall = 3),
+      format(round(lm_models$model_output[[x]]$tstat, digits = 2), nsmall = 2),
+      "adj.r2" =  format(round(lm_models$model_output[[x]]$adj_r2, digits = 2), nsmall = 2),
+      "r2" =  format(round(lm_models$model_output[[x]]$r2, digits = 2), nsmall = 2),
+      cbind("stat" = format(round(lm_models$model_output[[x]]$dwtest$statistic, digits = 1), nsmall = 1),
+            "val" = lm_models$model_output[[x]]$dwtest$p.value)
+    )
+)}); 
+lm_models_ols_coefficients <- do.call(rbind, lm_models_ols_coefficients)
+lm_models_ols_coefficients
+```
+
+
+# Table 11 and Figure 12
+
+Panel data regression between OJA and JVS - countries
+--- and ---
+Time effects for the fixed effects regression between OJA and JVS
+```{r figure12, fig.height=8,fig.width=12}
+geos <- MERGED_a
+geos[geos == 0] <- NA
+
+geos  %>%
+  filter(countries %in% c("Bulgaria", "Croatia", "Czechia", "Estonia", "Germany",
+                          "Hungary", "Latvia", "Lithuania", "Luxembourg", "Netherlands",
+                          "Poland", "Portugal", "Romania", "Slovakia", "Slovenia", "Sweden")) -> geos 
+
+geos_t <- geos %>%
+  select(-countries) %>%
+  group_by(time) %>%
+  summarise_all(funs(mean(., na.rm = T),
+                      sum(., na.rm = T)))
+
+geos_t$rel <- (geos_t$OJA_mean - geos_t$JVS_mean) / geos_t$JVS_mean
+
+geos_s <- geos %>%
+  select(-time) %>%
+  group_by(countries) %>%
+  summarise_all(funs(mean(., na.rm = T),
+                      sum(., na.rm = T)))
+
+geos_s$rel <- (geos_s$OJA_mean - geos_s$JVS_mean) / geos_s$JVS_mean
+
+geos <- pdata.frame(geos, index=c("countries","time"), stringsAsFactors = TRUE)
+
+panel1 <- plm(JVS ~ OJA, data=geos, model="within", effect = "twoways")
+summary(panel1)
+pdwtest(panel1)
+fixed <- fixef(panel1, effect = "time")                                                
+fixef(panel1, effect = "individual")
+plot(fixed)
+
+panel2 <- plm(JVS ~ OJA, data=geos, model="random", effect = "twoways")
+summary(panel2)
+pdwtest(panel2)
+phtest(panel1,panel2)
+ranef(panel2)
+
+panel3 <- plm(JVS ~ OJA, data=geos, model="fd", effect = "individual")
+summary(panel3)
+pdwtest(panel3)
+
+```
+
+# Figure 13
+
+Fixed effects regression between OJA and JVS with increasing time span
+
+```{r figure13, fig.height=8,fig.width=12}
+
+# countries over the time 
+df_countries <- MERGED_a %>%
+                filter(JVS > 0)
+
+unique_time <- unique(df_countries$time)
+models_countries <- lapply(2:length(unique(df_countries$time)) , function(x){
+sample <- df_countries[df_countries$time %in% unique_time[1:x],]  
+m <- plm("JVS ~ OJA", data = sample, index = c("countries", "time"), effect = "twoways", model = "within")  
+fixef <- fixef(m)
+beta <- m$coefficients
+return(list("model" = m, "beta" = beta, "fixedeffect" = fixef))
+}); names(models_countries) <- paste0(2:length(unique(df_countries$time)), " years", sep = "")
+# objects in list: 1 - model, 2 - only beta's, 3 - vector of fixed effect for the entire list of countires
+
+# NACE over the time 
+df_nace <- MERGED_b %>%
+filter(countries %in% c("Bulgaria", "Croatia", "Czechia", "Germany", "Hungary", 
+                        "Latvia", "Lithuania", "Luxembourg", "Netherlands", "Poland", 
+                        "Romania", "Slovakia", "Sweden")) %>% 
+select(-countries) %>%
+group_by(nace_r2, time) %>%
+summarise(across(.cols = everything(),~ sum(., na.rm = T))) %>%
+ungroup()
+
+unique_time <- unique(df_nace$time)
+models_nace <- lapply(2:length(unique(df_nace$time)) , function(x){
+sample <- df_nace[df_nace$time %in% unique_time[1:x],]  
+m <- plm("JVS ~ OJA", data = sample, index = c("nace_r2", "time"), effect = "twoways", model = "within")  
+fixef <- fixef(m)
+beta <- m$coefficients
+return(list("model" = m, "beta" = beta, "fixedeffect" = fixef))
+}); names(models_nace) <- paste0(2:length(unique(df_nace$time)), " years", sep = "")
+# objects in list: 1 - model, 2 - only beta's, 3 - vector of fixed effect for the entire list of countires
+
+
+# merge models
+df_countries <- lapply(1:length(models_countries), 
+                       function(x) models_countries[[x]]$beta); df_countries <- do.call(rbind, df_countries)
+df_countries  <- cbind(seq(2,6,1), df_countries)
+df_nace <- lapply(1:length(models_nace), 
+                  function(x) models_nace[[x]]$beta); df_nace <- do.call(rbind, df_nace)
+df_nace  <- cbind(seq(2,6,1), df_nace)
+
+df <- cbind(df_countries,df_nace[,2]) %>% data.frame()
+colnames(df) <- c("index", "Countries", "NACE")
+
+# Fixed effects regression between OJA and JVS with increasing time span
+# 
+# plot with error bars in file "plm models.R"
+# (relations6.jpeg)
+df %>%
+gather(org, value, 2:3) %>% 
+ggplot() +
+geom_line(aes(x = index, y = value, colour = org)) +
+geom_point(aes(x = index, y = value, colour = org)) +
+geom_text(aes(label = format(round(value, 3), nsmall = 3) , x = index, y = value), hjust = 0, vjust = -1 ) +
+scale_colour_manual(values = c("#286EB4","#FAA519"), name = "") +
+theme_bw() +
+labs(title = "",
+       x = "",
+       y = "") +
+theme(title = element_text(face = "bold", size = 15),
+        axis.text.x = element_text(colour = "black", size = 16),  
+        axis.text.y = element_text(colour = "black", size = 16),
+        axis.title.y = element_text(vjust = 2),
+        legend.text=element_text(size = 16),
+        axis.ticks = element_blank(),
+        panel.grid = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(colour = "black")) 
+```
+
+
+
+# Figure 14
+
+Individual country effects in fixed effects regression between OJA and JVS with increasing time span
+
+```{r figure14, fig.height=8,fig.width=12}
+# (relations7.jpeg)
+
+df_countries_beta <- lapply(1:length(models_countries), 
+                     function(x) models_countries[[x]]$fixedeffect); df_countries_beta <- do.call(cbind, df_countries_beta)
+df_countries_beta <- cbind(rownames(df_countries_beta), df_countries_beta) %>% data.frame()
+colnames(df_countries_beta) <- c("countries", "2", "3", "4", "5", "6")
+
+df_countries_beta %>%
+gather(index, value, 2:6) %>%
+mutate(countries = as.character(countries),
+       index = as.numeric(index),
+       value = as.numeric(value),
+       value = round(value)) %>%
+ggplot() +
+geom_line(aes(x = index, y = value)) +
+geom_point(aes(x = index, y = value)) +
+theme_bw() +
+labs(title = "",
+       x = "",
+       y = "") +
+facet_wrap(~countries, ncol = 4, scales = "free") +
+theme(title = element_text(face = "bold", size = 15),
+      axis.text.x = element_text(colour = "black", size = 10),  
+      axis.text.y = element_text(colour = "black", size = 10),
+      axis.title.y = element_text(vjust = 2),
+      legend.text=element_text(size = 16),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      strip.text = element_text(face = "bold", size = 13),
+      axis.line = element_line(colour = "black"))
+```
+
+
+
+# Table 12 and Figure 15
+
+Panel data regression between OJA and JVS - NACE sections  
+---- and  ----
+Time effects for the fixed effects regression between OJA and JVS
+```{r figure15, fig.height=8,fig.width=12}
+nace <- MERGED_b
+
+nace  %>%
+  filter(countries %in% c("Bulgaria", "Croatia", "Czechia", "Germany",
+                          "Hungary", "Latvia", "Lithuania", "Luxembourg", "Netherlands",
+                          "Poland", "Romania", "Slovakia", "Sweden")) -> nace 
+
+nace2 <- nace %>%
+  select(-countries) %>%
+  group_by(nace_r2, time) %>%
+  summarise_all(funs(sum(., na.rm = T))) %>%
+  ungroup()
+
+nace_s <- nace %>%
+  select(-c(time, countries)) %>%
+  group_by(nace_r2) %>%
+  summarise_all(funs(mean(., na.rm = T),
+                      sum(., na.rm = T)))
+
+
+nace_s$rel <- (nace_s$OJA_mean - nace_s$JVS_mean) / nace_s$JVS_mean
+
+
+nace <- pdata.frame(nace2, index=c("nace_r2","time"), stringsAsFactors = TRUE)
+
+panel1 <- plm(JVS ~ OJA, data=nace, model="within", effect = "twoways")
+summary(panel1)
+pdwtest(panel1)
+fixed <- fixef(panel1, effect = "time")                                                
+fixef(panel1, effect = "individual")
+plot(fixed)
+
+panel2 <- plm(JVS ~ OJA, data=nace, model="random", effect = "twoways")
+summary(panel2)
+pdwtest(panel2)
+phtest(panel1,panel2)
+ranef(panel2)
+
+panel3 <- plm(JVS ~ OJA, data=nace, model="fd", effect = "individual")
+summary(panel3)
+pdwtest(panel3)
+
+```
+
+# Figure 16
+
+Individual industry effects in fixed effects regression between OJA and JVS with increasing time span
+
+```{r figure16, fig.height=8,fig.width=12}
+# (relations12.jpeg)
+
+df_nace_beta <- lapply(1:length(models_nace), 
+                function(x) models_nace[[x]]$fixedeffect); df_nace_beta <- do.call(cbind, df_nace_beta)
+df_nace_beta <- cbind(rownames(df_nace_beta), df_nace_beta) %>% data.frame()
+colnames(df_nace_beta) <- c("NACE", "2", "3", "4", "5", "6")
+
+df_nace_beta %>%
+gather(index, value, 2:6) %>%
+mutate(NACE = as.character(NACE),
+         index = as.numeric(index),
+         value = as.numeric(value),
+         value = round(value)) %>%
+ggplot() +
+geom_line(aes(x = index, y = value)) +
+geom_point(aes(x = index, y = value)) +
+theme_bw() +
+labs(title = "",
+     x = "",
+     y = "") +
+facet_wrap(~NACE, ncol = 4, scales = "free") +
+theme(title = element_text(face = "bold", size = 15),
+      axis.text.x = element_text(colour = "black", size = 10),  
+      axis.text.y = element_text(colour = "black", size = 10),
+      axis.title.y = element_text(vjust = 2),
+      legend.text=element_text(size = 16),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      strip.text = element_text(face = "bold", size = 13),
+      axis.line = element_line(colour = "black"))
+```
+
+
+# Table 13
+
+Panel data regression between OJA and JVS - ISCO major groups in Hungary
+
+```{r table13}
+isco <- MERGED_c
+
+isco  %>%
+  filter(countries %in% c("Hungary")) -> isco 
+
+isco2 <- isco %>%
+  select(-countries) %>%
+  group_by(isco08, time) %>%
+  summarise_all(funs(sum(., na.rm = T))) %>%
+  ungroup()
+
+isco_s <- isco %>%
+  select(-c(time, countries)) %>%
+  group_by(isco08) %>%
+  summarise_all(funs(mean(., na.rm = T),
+                      sum(., na.rm = T)))
+
+
+isco_s$rel <- (isco_s$OJA_mean - isco_s$JVS_mean) / isco_s$JVS_mean
+
+
+isco <- pdata.frame(isco2, index=c("isco08","time"), stringsAsFactors = TRUE)
+
+panel1 <- plm(JVS ~ OJA, data=isco, model="within", effect = "twoways")
+summary(panel1)
+pdwtest(panel1)
+fixed <- fixef(panel1, effect = "time")                                                
+fixef(panel1, effect = "individual")
+plot(fixed)
+
+panel2 <- plm(JVS ~ OJA, data=isco, model="random", effect = "twoways")
+summary(panel2)
+pdwtest(panel2)
+phtest(panel1,panel2)
+ranef(panel2)
+
+panel3 <- plm(JVS ~ OJA, data=isco, model="fd", effect = "individual")
+summary(panel3)
+pdwtest(panel3)
+
+```
+
