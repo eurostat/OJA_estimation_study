@@ -8,7 +8,7 @@ The material provided herein will enable you to reproduce the experiments presen
 
 **Description**
 
-The source code is provided as *.Rmd* files supported with other functions and R codes in the [**_r-codes/_**](r-codes) folder to prepare the data. The .Rmd files allows you to reproduce the results of the study in case you have access to the original detailed data. 
+The source code is provided as *.Rmd* files supported with other functions and other R codes in the [**_r-codes/_**](r-codes) folder to prepare the data. The .Rmd files allows you to reproduce the results of the study in case you have access to the original detailed data. 
 
 The data was collected and provided by Cedefop for 28 four European countries on online job advertisements since 2018. The data stored in S3 buckets and could be accessed through Athena service. In the code the name of the Athena table is provided together with the query to get the base datasets which were used in the later steps in the paper.  
 
