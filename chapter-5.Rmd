@@ -1,0 +1,112 @@
+---
+title: "Chapter 5 tables and graphs"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup}
+library(data.table)
+library(tidyverse)
+# library(xtable)
+library(countrycode)
+# library(magrittr)
+# library(jtools)
+# library(lmtest)
+# library(gridExtra)
+# library(pastecs)
+# library(plm)
+options(scipen = 999)
+```
+
+
+# Prepare the data
+
+Get the data which is created by the `dataprep.R`.
+
+
+```{r  data preparation}
+rm(list = ls())
+source("r-codes/dataprep.R")
+head(oja_capture)
+setkeyv(oja_capture, cols = c("general_id", "idcountry", "grab_date", "expire_date",  
+                                  "idesco_level_2", "nace", "source", "source_category", 
+                                  "t2018Q3", "t2018Q4", "t2019Q1", "t2019Q2", "t2019Q3", "t2019Q4"))
+oja_capture[, occup := substr(idesco_level_2,1,1)]
+```
+
+
+# Figure 17
+
+Distribution of number of advertisements by quarters and days to the end of given quarter based on `grab_date` variable
+
+```{r figure17, fig.height=6,fig.width=8}
+# (fig-times-dist.png)
+rbind(oja_db[t2018Q3 == TRUE,.N, .(vals=t2018Q3_days)][, quar:="2018Q3"],
+      oja_db[t2018Q4 == TRUE,.N, .(vals=t2018Q4_days)][, quar:="2018Q4"],
+      oja_db[t2019Q1 == TRUE,.N, .(vals=t2019Q1_days)][, quar:="2019Q1"],
+      oja_db[t2019Q2 == TRUE,.N, .(vals=t2019Q2_days)][, quar:="2019Q2"],
+      oja_db[t2019Q3 == TRUE,.N, .(vals=t2019Q3_days)][, quar:="2019Q3"],
+      oja_db[t2019Q4 == TRUE,.N, .(vals=t2019Q4_days)][, quar:="2019Q4"]) -> times
+
+times %>%
+  ggplot(data = ., aes(x = vals, y = N/1000)) +
+  geom_col() + 
+  facet_wrap(~quar) +
+  theme_bw() +
+  labs(x = "Days to end of quarte based on grab_date variable", y = "Number of advertisements (in thous.)") -> p
+plot(p)
+```
+
+# Figure 18
+
+Comparison of estimates based on JVS (solid red line; seasonally unadjusted data), OJA data without trimming (solid black line) and trimmed data (solid gray lines)
+
+```{r figure 18, fig.height=6,fig.width=8}
+# (fig-trimed.png)
+# Removing number of advertisements based on time -- trimming
+
+stats_quart_2018Q3 <- list()
+stats_quart_2018Q4 <- list()
+stats_quart_2019Q1 <- list()
+stats_quart_2019Q2 <- list()
+stats_quart_2019Q3 <- list()
+stats_quart_2019Q4 <- list()
+
+days_pass <- c(130,seq(from  = 7, to = 50, by = 1))
+
+for (d in days_pass) {
+  stats_quart_2018Q3[[d]] <- oja_capture[ t2018Q3 & t2018Q3_days < d, .N, .(general_id, idcountry)][, .N, idcountry]
+  stats_quart_2018Q4[[d]] <- oja_capture[ t2018Q4 & t2018Q4_days < d, .N, .(general_id, idcountry)][, .N, idcountry]
+  stats_quart_2019Q1[[d]] <- oja_capture[ t2019Q1 & t2019Q1_days < d, .N, .(general_id, idcountry)][, .N, idcountry]
+  stats_quart_2019Q2[[d]] <- oja_capture[ t2019Q2 & t2019Q2_days < d, .N, .(general_id, idcountry)][, .N, idcountry]
+  stats_quart_2019Q3[[d]] <- oja_capture[ t2019Q3 & t2019Q3_days < d, .N, .(general_id, idcountry)][, .N, idcountry]
+  stats_quart_2019Q4[[d]] <- oja_capture[ t2019Q4 & t2019Q4_days < d, .N, .(general_id, idcountry)][, .N, idcountry]
+}
+
+stats_quart_2018Q3_l <- rbindlist(stats_quart_2018Q3, idcol = "remove") %>% mutate(quarter = "2018Q3")
+stats_quart_2018Q4_l <- rbindlist(stats_quart_2018Q4, idcol = "remove") %>% mutate(quarter = "2018Q4")
+stats_quart_2019Q1_l <- rbindlist(stats_quart_2019Q1, idcol = "remove") %>% mutate(quarter = "2019Q1")
+stats_quart_2019Q2_l <- rbindlist(stats_quart_2019Q2, idcol = "remove") %>% mutate(quarter = "2019Q2")
+stats_quart_2019Q3_l <- rbindlist(stats_quart_2019Q3, idcol = "remove") %>% mutate(quarter = "2019Q3")
+stats_quart_2019Q4_l <- rbindlist(stats_quart_2019Q4, idcol = "remove") %>% mutate(quarter = "2019Q4")
+
+stats_quarts <- bind_rows(stats_quart_2018Q3_l,stats_quart_2018Q4_l,stats_quart_2019Q1_l,stats_quart_2019Q2_l,
+                          stats_quart_2019Q3_l,stats_quart_2019Q4_l)
+
+stats_quarts %>%
+  left_join(jvs %>% filter(s_adj == "NSA") %>% select(geo, yq, jvs), 
+            by = c("quarter" = "yq", "idcountry" = "geo")) %>%
+  filter(!is.na(jvs)) %>%
+  filter(idcountry != "AT") %>%
+  mutate(idcountry = countrycode(idcountry, "eurostat","country.name"))  %>%
+  select(idcountry, quarter, oja = N, jvs, remove) %>%
+  ggplot(data = .) + 
+  geom_line(aes(x = quarter, y = oja/1000, group = remove, alpha = remove)) +
+  geom_line(aes(x = quarter, y = jvs/1000, group = 1), color = "red", size = 1.2) + 
+  facet_wrap(~idcountry, scales = "free_y") +
+  scale_color_brewer(name = "Source", type = "qual", palette = "Set1") +
+  theme_bw() +
+  labs(x = "Quarter", y = "Job vacancies (in thous.)", alpha = "Days to the \nend of quarter") +
+  theme(axis.text.x = element_text(angle = 45, vjust=1,hjust=1)) -> p
+plot(p)
+```

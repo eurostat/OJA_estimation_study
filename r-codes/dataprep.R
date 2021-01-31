@@ -230,5 +230,9 @@ MERGED_c <- merge(x = oja_c,
 
 
 oja_capture <- oja_db[!idcountry %in% c("CY", "DK", "EE", "LV", "EL", "MT", "SI", "HR") & count_quarts > 0]
+jvs <- restatapi::get_eurostat_data("jvs_q_isco_r2",filters=list(indic_em="JOBVAC",geo=eu27,isco08="TOTAL",sizeclas="TOTAL",nace_r2="[A-Z]"),date_filter = "2018<") %>%
+  count(geo, s_adj, time, wt = values, name = "jvs") %>%
+  mutate(yq = gsub("-","",time))
+
 
 

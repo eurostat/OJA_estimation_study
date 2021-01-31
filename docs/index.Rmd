@@ -7,4 +7,5 @@ Here you can find the rendered files from the *.Rmd* files.
 
 ## R Markdown files 
 
- - The graphs and tables can be replicate with the code from [chapter-4.Rmd](chapter-4.html)
+ - The graphs and tables can be replicated for Chapter 4 with the code from [chapter-4.Rmd](chapter-4.html)
+ - The graphs and tables can be replicated for Chapter 5 with the code from [chapter-4.Rmd](chapter-5.html)
