@@ -2,6 +2,12 @@
 title: "Chapter 5 tables and graphs"
 output: html_document
 date: "`r Sys.Date()`"
+knit: (function(inputFile, encoding) { 
+      out_dir <- "docs";
+      if(!file.exists(out_dir)) {dir.create(out_dir)};
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(dirname(inputFile), out_dir, sprintf("%s.html", basename(tools::file_path_sans_ext(inputFile)))))})
 ---
 
 ```{r setup}
@@ -110,3 +116,32 @@ stats_quarts %>%
   theme(axis.text.x = element_text(angle = 45, vjust=1,hjust=1)) -> p
 plot(p)
 ```
+
+
+# Figure 19
+
+Comparison of absolute difference of estimates between OJA trimmed estimates with JVS for each quarter
+
+```{r figure 19, fig.height=6,fig.width=8}
+# (fig-trimed-diffs.png)
+stats_quarts %>%
+  filter(remove != 130) %>%
+  left_join(jvs %>% filter(s_adj == "NSA") %>% select(geo, yq, jvs), 
+            by = c("quarter" = "yq", "idcountry" = "geo")) %>%
+  mutate(bias = abs((N - jvs)/jvs)) %>%
+  filter(!idcountry %in% c("AT"))  %>%
+  filter(!is.na(jvs)) %>%
+  mutate(idcountry = countrycode(idcountry, "eurostat","country.name")) %>%
+  ggplot(data = ., aes(x = remove, y = bias, color = quarter, group = quarter)) +
+  geom_line()   +
+  facet_wrap(~idcountry, scales = "free_y") +
+  scale_color_brewer(name  = "Quarter", type = "qual", palette = "Dark2") +
+  theme_bw() +
+  scale_y_continuous(labels = scales::percent) + 
+  geom_hline(yintercept = 0, color = "black", type = "dashed") + 
+  labs(x = "Days available at the end of quarter", y = "Absolute percentage difference with JVS") -> p
+
+plot(p)
+```
+
+

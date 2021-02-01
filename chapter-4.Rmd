@@ -2,6 +2,12 @@
 title: "Chapter 4 tables and graphs"
 output: html_document
 date: "`r Sys.Date()`"
+knit: (function(inputFile, encoding) { 
+      out_dir <- "docs";
+      if(!file.exists(out_dir)) {dir.create(out_dir)};
+      rmarkdown::render(inputFile,
+                        encoding=encoding, 
+                        output_file=file.path(dirname(inputFile), out_dir, sprintf("%s.html", basename(tools::file_path_sans_ext(inputFile)))))})
 ---
 
 ```{r setup}
@@ -669,7 +675,7 @@ fixef <- fixef(m)
 beta <- m$coefficients
 return(list("model" = m, "beta" = beta, "fixedeffect" = fixef))
 }); names(models_countries) <- paste0(2:length(unique(df_countries$time)), " years", sep = "")
-# objects in list: 1 - model, 2 - only beta's, 3 - vector of fixed effect for the entire list of countires
+# objects in list: 1 - model, 2 - only beta's, 3 - vector of fixed effect for the entire list of countries
 
 # NACE over the time 
 df_nace <- MERGED_b %>%
@@ -689,7 +695,7 @@ fixef <- fixef(m)
 beta <- m$coefficients
 return(list("model" = m, "beta" = beta, "fixedeffect" = fixef))
 }); names(models_nace) <- paste0(2:length(unique(df_nace$time)), " years", sep = "")
-# objects in list: 1 - model, 2 - only beta's, 3 - vector of fixed effect for the entire list of countires
+# objects in list: 1 - model, 2 - only beta's, 3 - vector of fixed effect for the entire list of countries
 
 
 # merge models
@@ -704,9 +710,6 @@ df <- cbind(df_countries,df_nace[,2]) %>% data.frame()
 colnames(df) <- c("index", "Countries", "NACE")
 
 # Fixed effects regression between OJA and JVS with increasing time span
-# 
-# plot with error bars in file "plm models.R"
-# (relations6.jpeg)
 df %>%
 gather(org, value, 2:3) %>% 
 ggplot() +
@@ -727,6 +730,86 @@ theme(title = element_text(face = "bold", size = 15),
         panel.grid = element_blank(),
         panel.border = element_blank(),
         axis.line = element_line(colour = "black")) 
+
+
+
+
+# plot with error bars in file "plm models.R"
+# (relations6.jpeg)
+
+df_countries <- MERGED_a %>%
+                filter(JVS > 0)
+
+unique_time <- unique(df_countries$time)
+models_countries <- lapply(2:length(unique(df_countries$time)) , function(x){
+ sample <- df_countries[df_countries$time %in% unique_time[1:x],]  
+ m <- plm("JVS ~ OJA", data = sample, index = c("countries", "time"), effect = "twoways", model = "within")  
+ fixef <- fixef(m)
+ beta <- m$coefficients
+ se <- summary(m)$coefficients[2]
+ return(list("model" = m, "beta" = beta, "se" = se, "fixedeffect" = fixef))
+}); names(models_countries) <- paste0(2:length(unique(df_countries$time)), " years", sep = "")
+# objects in list: 1 - model, 2 - only beta's, 3 - vector of fixed effect for the entire list of countries
+
+# NACE over the time 
+df_nace <- MERGED_b %>%
+ filter(countries %in% c("Bulgaria", "Croatia", "Czechia", "Germany", "Hungary", 
+                         "Latvia", "Lithuania", "Luxembourg", "Netherlands", "Poland", 
+                         "Romania", "Slovakia", "Sweden")) %>% 
+ select(-countries) %>%
+ group_by(nace_r2, time) %>%
+ summarise_each(funs(sum(., na.rm = T))) %>%
+ ungroup()
+
+unique_time <- unique(df_nace$time)
+models_nace <- lapply(2:length(unique(df_nace$time)) , function(x){
+ sample <- df_nace[df_nace$time %in% unique_time[1:x],]  
+ m <- plm("JVS ~ OJA", data = sample, index = c("nace_r2", "time"), effect = "twoways", model = "within")  
+ fixef <- fixef(m)
+ beta <- m$coefficients
+ se <- summary(m)$coefficients[2]
+ return(list("model" = m, "beta" = beta, "se" = se, "fixedeffect" = fixef))
+}); names(models_nace) <- paste0(2:length(unique(df_nace$time)), " years", sep = "")
+# objects in list: 1 - model, 2 - only beta's, 3 - vector of fixed effect for the entire list of countries
+
+
+
+# merge models
+df_countries <- lapply(1:length(models_countries), function(x){
+ data.frame("beta" = models_countries[[x]]$beta,  "se" = models_countries[[x]]$se)
+ }); df_countries <- do.call(rbind, df_countries)
+df_countries  <- cbind("lp" = seq(2,6,1), df_countries, "Group" = "Countries")
+
+
+df_nace <- lapply(1:length(models_nace), function(x) {
+ data.frame("beta" = models_nace[[x]]$beta,  "se" = models_nace[[x]]$se)
+  }); df_nace <- do.call(rbind, df_nace)
+df_nace  <- cbind("lp" = seq(2,6,1), df_nace, "Group" = "NACE")
+
+df <- rbind(df_countries, df_nace)
+df <- df %>%
+      select(1,4,2,3)
+
+ggplot(df, aes(x = lp, y = beta)) + 
+ geom_line() +
+ geom_point() +
+ geom_errorbar(aes(ymin = beta - se, ymax = beta + se), width=.2,
+               position = position_dodge()) + 
+ geom_text(aes(label = format(round(beta, 3), nsmall = 3) , x = lp, y = beta), hjust = -0.1, vjust = -0.7, size = 4) +
+ facet_wrap(~Group, ncol = 2) +
+ theme_bw() +
+ labs(title = "",
+       x = "",
+       y = "") +
+ theme(title = element_text(face = "bold", size = 15),
+        axis.text.x = element_text(colour = "black", size = 16),  
+        axis.text.y = element_text(colour = "black", size = 16),
+        axis.title.y = element_text(vjust = 2),
+        legend.text=element_text(size = 16),
+        axis.ticks = element_blank(),
+        panel.grid = element_blank(),
+        strip.text = element_text(colour = "black", size = 16, face = "bold"),
+        axis.line = element_line(colour = "black"))
 ```
 
 
