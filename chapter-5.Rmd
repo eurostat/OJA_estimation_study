@@ -13,14 +13,14 @@ knit: (function(inputFile, encoding) {
 ```{r setup}
 library(data.table)
 library(tidyverse)
-# library(xtable)
+library(xtable)
 library(countrycode)
 # library(magrittr)
 # library(jtools)
 # library(lmtest)
 # library(gridExtra)
 # library(pastecs)
-# library(plm)
+library(plm)
 options(scipen = 999)
 ```
 
@@ -145,3 +145,167 @@ plot(p)
 ```
 
 
+
+
+
+
+# Figure 21
+
+Comparison of estimates based on JVS (red dashed line), OJA data without trimming (blue dashed line) and zero-one-truncated capture-recapture size estimator under different trimming dates (7 to 30)
+
+```{r figure 21, fig.height=6,fig.width=8}
+# (fig-big-est.png)
+
+## over 200k
+countries <- c("BE", "ES", "DE", "NL", "PL")
+
+days <- 7:30
+
+result_countries <- list()
+
+result_2018Q3 <- list()
+result_2018Q4 <- list()
+result_2019Q1 <- list()
+result_2019Q2 <- list()
+result_2019Q3 <- list()
+result_2019Q4 <- list()
+
+for (co in countries[]) {
+  print(co)
+  k <- 1
+  for (i in days) {
+    print(k)
+    print("t2018Q3")
+    suppressMessages(suppressWarnings(
+      result_2018Q3[[k]]<- estimate_population_size(data = oja_capture, country = co, quarter = "t2018Q3", quarter_days = "t2018Q3_days", trunc = i)
+    ))
+    print("t2018Q4")
+    suppressMessages(suppressWarnings(
+      result_2018Q4[[k]]<- estimate_population_size(data = oja_capture, country = co, quarter = "t2018Q4", quarter_days = "t2018Q4_days", trunc = i)
+    ))
+    print("t2019Q1")
+    suppressMessages(suppressWarnings(
+      result_2019Q1[[k]]<- estimate_population_size(data = oja_capture, country = co, quarter = "t2019Q1", quarter_days = "t2019Q1_days", trunc = i)
+    ))
+    print("t2019Q2")
+    suppressMessages(suppressWarnings(
+      result_2019Q2[[k]]<- estimate_population_size(data = oja_capture, country = co, quarter = "t2019Q2", quarter_days = "t2019Q2_days", trunc = i)
+    ))
+    print("t2019Q3")
+    suppressMessages(suppressWarnings(
+      result_2019Q3[[k]]<- estimate_population_size(data = oja_capture, country = co, quarter = "t2019Q3", quarter_days = "t2019Q3_days", trunc = i)
+    ))
+    k <- k + 1
+  }
+  result_countries[[co]] <- list(result_2018Q3 = result_2018Q3, result_2018Q4 = result_2018Q4,
+                                 result_2019Q1 = result_2019Q1,
+                                 result_2019Q2 = result_2019Q2, result_2019Q3 = result_2019Q3)
+}
+
+
+wyniki_est <- list()
+
+l <- 1
+for (i in 1:length(result_countries)) {
+  for (j in 1:5) {
+    for (k in 1:length(days)) {
+      l <- l  + 1
+      wyniki_est[[l]] <- data.frame(country = countries[i], 
+                                    quarter = names(result_countries[[1]])[j],
+                                    days = days[k],
+                                    boots = result_countries[[i]][[j]][[k]]$boots)
+      
+    }
+  }
+}
+wyniki_est_df <- rbindlist(wyniki_est)
+
+oja_capture_big <- oja_capture[idcountry %in% c("BE", "ES", "DE", "NL", "PL"), 
+                                         lapply(.SD, sum, na.rm=TRUE), .(country=idcountry), 
+                                         .SDcols = t2018Q3:t2019Q4] %>%
+  gather(quarter, cede, -country) %>%
+  mutate(quarter = str_remove(quarter, "t"),
+         cede  = cede/1000)
+
+
+wyniki_est_df %>%
+  group_by(country, quarter=str_remove(quarter, 'result_'), days) %>%
+  summarise(med = median(boots)/1000,
+            me = mean(boots)/1000,
+            se = sd(boots) / 1000,
+            q025 = quantile(boots, 0.025)/1000,
+            q975 = quantile(boots, 0.975)/1000) %>%
+  ungroup() %>%
+  left_join(jvs %>% filter(s_adj == "NSA") %>%
+              select(country = geo, quarter=yq, jvs)) %>%
+  left_join(oja_capture_big) %>%
+  mutate(jvs = jvs / 1000) %>%
+  mutate(country = countrycode(country, "eurostat","country.name"))  %>%
+  ggplot(data = ., aes(x = days)) +
+  #geom_errorbar(aes(ymin = q025, y = med, ymax = q975)) +
+  geom_hline(aes(yintercept = jvs), color = "red", linetype = "dashed") + 
+  geom_hline(aes(yintercept = cede), color = "blue", linetype = "dashed") + 
+  geom_point(aes(y = me)) +
+  facet_grid(country ~ quarter, scales = "free_y", switch = "y") +
+  scale_linetype_manual(name = "Source", values = c("red", "blue"), breaks  = c("jvs", "cede")) + 
+  #scale_y_continuous(labels = scales::percent) + 
+  theme_bw() + 
+  labs(x = "Days to end of the quarter (trimming based on grab_date)", y  = "Estimated number of job vacancies") -> p
+
+plot(p)
+
+# coefficient of variation
+wyniki_est_df %>%
+  group_by(country, quarter=str_remove(quarter, 'result_'), days) %>%
+  summarise(med = median(boots)/1000,
+            me = mean(boots)/1000,
+            se = sd(boots) / 1000,
+            q025 = quantile(boots, 0.025)/1000,
+            q975 = quantile(boots, 0.975)/1000) %>%
+  ungroup() %>%
+  left_join(jvs %>% filter(s_adj == "NSA") %>%
+              select(country = geo, quarter=yq, jvs)) %>%
+  left_join(oja_capture_big) %>%
+  mutate(jvs = jvs / 1000) %>%
+  mutate(country = countrycode(country, "eurostat","country.name"))  %>%
+  ggplot(data = ., aes(x = days)) +
+  #geom_errorbar(aes(ymin = q025, y = med, ymax = q975)) +
+  #geom_hline(aes(yintercept = jvs), color = "red", linetype = "dashed") + 
+  #geom_hline(aes(yintercept = cede), color = "blue", linetype = "dashed") + 
+  geom_point(aes(y = se/me)) +
+  facet_grid(country ~ quarter, scales = "free_y", switch = "y") +
+  #scale_linetype_manual(name = "Source", values = c("red", "blue"), breaks  = c("jvs", "cede")) + 
+  scale_y_continuous(labels = scales::percent) + 
+  theme_bw() + 
+  labs(x = "Days to end of the quarter (trimming based on grab_date)", y  = "CV of the estimated number of job vacancies") -> p
+plot(p)
+
+```
+
+
+# Table 15
+
+Comparison of estimates (in thous.) based on JVS, OJA data without trimming and zero-one-truncated Poisson capture-recapture size estimator under different trimming to 20 days
+
+```{r table 15}
+wyniki_est_df %>%
+  group_by(country, quarter=str_remove(quarter, 'result_'), days) %>%
+  summarise(med = median(boots)/1000,
+            me = mean(boots) / 1000,
+            se = sd(boots) / 1000, 
+            cv = se / med*100,
+            q025 = quantile(boots, 0.025)/1000,
+            q975 = quantile(boots, 0.975)/1000) %>%
+  ungroup() %>%
+  left_join(jvs %>% filter(s_adj =="NSA") %>%
+              select(country = geo, quarter=yq, jvs)) %>%
+  left_join(oja_capture_big) %>%
+  left_join(stats_quarts %>% filter(remove == 20) %>% rename(country=idcountry)) %>%
+  mutate(N = N/1000) %>%
+  mutate(jvs = jvs / 1000) %>%
+  mutate(country = countrycode(country, "eurostat","country.name"))  %>%
+  filter(days == 20) %>%
+  select(country, quarter, JVS =jvs, OJA = cede, trimmed = N, Proposed = med, CV = cv) %>%
+  xtable(caption = "gdgg", digits = 1) %>%
+  print.xtable(include.rownames = F, caption.placement = "top")
+```

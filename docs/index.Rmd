@@ -3,7 +3,7 @@ title: "OJA_estimation_study"
 output: html_document
 ---
 
-Here you can find the rendered files from the *.Rmd* files. 
+Here you can find the rendered `html` files created from the *.Rmd* files. 
 
 ## R Markdown files 
 
