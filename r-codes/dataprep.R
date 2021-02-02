@@ -2,7 +2,7 @@ rm(list = ls())
 
 #########################################
 # LOAD LIBRARIES
-
+library(data.table)
 library(RAthena)
 library(tidyverse)
 library(restatapi)

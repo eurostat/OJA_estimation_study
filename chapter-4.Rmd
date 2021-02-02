@@ -11,8 +11,6 @@ knit: (function(inputFile, encoding) {
 ---
 
 ```{r setup}
-library(data.table)
-library(tidyverse)
 library(xtable)
 library(countrycode)
 library(magrittr)

@@ -194,32 +194,10 @@ summary {
 </div>
 
 
-<pre class="r"><code>library(data.table)
-library(tidyverse)</code></pre>
-<pre><code>## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.0 ──</code></pre>
-<pre><code>## ✓ ggplot2 3.3.2     ✓ purrr   0.3.4
-## ✓ tibble  3.0.4     ✓ dplyr   1.0.2
-## ✓ tidyr   1.1.2     ✓ stringr 1.4.0
-## ✓ readr   1.4.0     ✓ forcats 0.5.0</code></pre>
-<pre><code>## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
-## x dplyr::between()   masks data.table::between()
-## x dplyr::filter()    masks stats::filter()
-## x dplyr::first()     masks data.table::first()
-## x dplyr::lag()       masks stats::lag()
-## x dplyr::last()      masks data.table::last()
-## x purrr::transpose() masks data.table::transpose()</code></pre>
 <pre class="r"><code>library(xtable)
 library(countrycode)
-library(magrittr)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;magrittr&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:purrr&#39;:
-## 
-##     set_names</code></pre>
-<pre><code>## The following object is masked from &#39;package:tidyr&#39;:
-## 
-##     extract</code></pre>
-<pre class="r"><code>library(jtools)
+library(magrittr)
+library(jtools)
 library(lmtest)</code></pre>
 <pre><code>## Loading required package: zoo</code></pre>
 <pre><code>## 
@@ -227,41 +205,47 @@ library(lmtest)</code></pre>
 <pre><code>## The following objects are masked from &#39;package:base&#39;:
 ## 
 ##     as.Date, as.Date.numeric</code></pre>
-<pre class="r"><code>library(gridExtra)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;gridExtra&#39;</code></pre>
-<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
-## 
-##     combine</code></pre>
-<pre class="r"><code>library(pastecs)</code></pre>
+<pre class="r"><code>library(gridExtra)
+library(pastecs)</code></pre>
 <pre><code>## 
 ## Attaching package: &#39;pastecs&#39;</code></pre>
 <pre><code>## The following object is masked from &#39;package:magrittr&#39;:
 ## 
 ##     extract</code></pre>
-<pre><code>## The following objects are masked from &#39;package:dplyr&#39;:
-## 
-##     first, last</code></pre>
-<pre><code>## The following object is masked from &#39;package:tidyr&#39;:
-## 
-##     extract</code></pre>
-<pre><code>## The following objects are masked from &#39;package:data.table&#39;:
-## 
-##     first, last</code></pre>
-<pre class="r"><code>library(plm)</code></pre>
-<pre><code>## 
-## Attaching package: &#39;plm&#39;</code></pre>
-<pre><code>## The following objects are masked from &#39;package:dplyr&#39;:
-## 
-##     between, lag, lead</code></pre>
-<pre><code>## The following object is masked from &#39;package:data.table&#39;:
-## 
-##     between</code></pre>
-<pre class="r"><code>options(scipen = 999)</code></pre>
+<pre class="r"><code>library(plm)
+options(scipen = 999)</code></pre>
 <div id="prepare-the-data" class="section level2">
 <h2>Prepare the data</h2>
 <pre class="r"><code>rm(list = ls())
 source(&quot;r-codes/dataprep.R&quot;)</code></pre>
+<pre><code>## 
+## Attaching package: &#39;data.table&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:plm&#39;:
+## 
+##     between</code></pre>
+<pre><code>## The following objects are masked from &#39;package:pastecs&#39;:
+## 
+##     first, last</code></pre>
+<pre><code>## Registered S3 methods overwritten by &#39;broom&#39;:
+##   method            from  
+##   tidy.glht         jtools
+##   tidy.summary.glht jtools</code></pre>
+<pre><code>## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.0 ──</code></pre>
+<pre><code>## ✓ ggplot2 3.3.2     ✓ purrr   0.3.4
+## ✓ tibble  3.0.4     ✓ dplyr   1.0.2
+## ✓ tidyr   1.1.2     ✓ stringr 1.4.0
+## ✓ readr   1.4.0     ✓ forcats 0.5.0</code></pre>
+<pre><code>## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+## x dplyr::between()   masks data.table::between(), plm::between()
+## x dplyr::combine()   masks gridExtra::combine()
+## x tidyr::extract()   masks pastecs::extract(), magrittr::extract()
+## x dplyr::filter()    masks stats::filter()
+## x dplyr::first()     masks data.table::first(), pastecs::first()
+## x dplyr::lag()       masks plm::lag(), stats::lag()
+## x dplyr::last()      masks data.table::last(), pastecs::last()
+## x dplyr::lead()      masks plm::lead()
+## x purrr::set_names() masks magrittr::set_names()
+## x purrr::transpose() masks data.table::transpose()</code></pre>
 <pre><code>## restatapi: - config file with the API version 1 loaded from GitHub (the &#39;current&#39; API version number is 1).
 ##            - 4 from the 32 cores are used for parallel computing.
 ##            - &#39;libcurl&#39; will be used for file download.
@@ -285,7 +269,7 @@ source(&quot;r-codes/dataprep.R&quot;)</code></pre>
                format.args = list(big.mark = &quot;,&quot;, decimal.mark = &quot;&quot;),
                caption.placement = &quot;top&quot;)</code></pre>
 <pre><code>## % latex table generated in R 4.0.3 by xtable 1.8-4 package
-## % Mon Feb  1 12:11:02 2021
+## % Mon Feb  1 22:09:43 2021
 ## \begin{table}[ht]
 ## \centering
 ## \caption{Number of advertisements active at the end of each quarter} 
@@ -340,7 +324,7 @@ source(&quot;r-codes/dataprep.R&quot;)</code></pre>
                format.args = list(big.mark = &quot;,&quot;, decimal.mark = &quot;&quot;),
                caption.placement = &quot;top&quot;)</code></pre>
 <pre><code>## % latex table generated in R 4.0.3 by xtable 1.8-4 package
-## % Mon Feb  1 12:11:05 2021
+## % Mon Feb  1 22:10:00 2021
 ## \begin{table}[ht]
 ## \centering
 ## \caption{Number of unique sources of advertisements in Cedefop’s OJA dataset, by quarter} 
@@ -394,7 +378,7 @@ source(&quot;r-codes/dataprep.R&quot;)</code></pre>
                caption.placement = &quot;top&quot;)</code></pre>
 <pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
 <pre><code>## % latex table generated in R 4.0.3 by xtable 1.8-4 package
-## % Mon Feb  1 12:11:10 2021
+## % Mon Feb  1 22:10:05 2021
 ## \begin{table}[ht]
 ## \centering
 ## \caption{Number of unique sources of advertisements in Cedefop’s OJA dataset, by quarter} 
@@ -466,7 +450,7 @@ oja_db_unique_sources[order(idcountry,quarter, times)] %&gt;%
                caption.placement = &quot;top&quot;)</code></pre>
 <pre><code>## `summarise()` regrouping output by &#39;idcountry&#39; (override with `.groups` argument)</code></pre>
 <pre><code>## % latex table generated in R 4.0.3 by xtable 1.8-4 package
-## % Mon Feb  1 12:12:18 2021
+## % Mon Feb  1 22:11:14 2021
 ## \begin{table}[ht]
 ## \centering
 ## \caption{Average number of advertisements occurring on one, two, three and four and more sources advertisements between 2018Q3 and 2019Q4} 
